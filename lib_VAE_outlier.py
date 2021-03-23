@@ -32,7 +32,7 @@ class DenseVAE:
         self.latent_mu = encoder.latent_mu
         self.latent_ln_sigma = encoder.latent_ln_sigma
         self.loss = None
-        
+
         self.vae = self.build_vae()
     ############################################################################
     def plot_model(self):
@@ -53,27 +53,56 @@ class DenseVAE:
             name='DenseVAE'
         )
 
-        self.loss = self.vae_loss(z_m=self.latent_mu, z_s=self.latent_ln_sigma)
+        self.loss = self.vae_loss()
         vae.compile(loss=self.loss, optimizer='adam') #, lr = self.lr)
 
         return vae
     ############################################################################
-    def vae_loss(self, z_m, z_s):
+    def vae_loss(self):
+        return self.vae_loss_aux
+    ############################################################################
+    def vae_loss_aux(self, y_true, y_pred):
 
-        kl_loss = kl_loss(z_m, z_s)
-        rec_loss = rec_loss(y_true, y_pred)
-
+        kl_loss = self.kl_loss()
+        rec_loss = self.rec_loss(y_true, y_pred)
         return K.mean(kl_loss + rec_loss)
     ############################################################################
-    def rec_loss(y_true, y_pred):
+    def kl_loss(self):
 
-        return keras.losses.mse(y_true, y_pred)
-    ############################################################################
-    def kl_loss(self, z_m, z_s):
+        z_m = self.latent_mu
+        z_s = self.latent_ln_sigma
 
         kl_loss = 1 + z_s - K.square(z_m) - K.exp(z_s)
 
         return -0.5*K.sum(kl_loss, axis=-1)
+    ############################################################################
+    def rec_loss(self, y_true, y_pred):
+
+        return keras.losses.mse(y_true, y_pred)
+
+    # def _vae_loss(self, z_m, z_s):
+    #
+    #     # vae_loss = self._reconstruction_loss(y_true, y_pred) +\
+    #     # self._kl_loss(z_m, z_s)
+
+    #     def rec_loss(y_true, y_pred):
+    #
+    #         return keras.losses.mse(y_true, y_pred)
+    #
+    #     def kl_loss(self, z_m, z_s):
+    #
+    #         kl_loss = 1 + z_s - K.square(z_m) - K.exp(z_s)
+    #         return -0.5*K.sum(kl_loss, axis=-1)
+    #
+    #     def vae_loss(y_true, y_pred):
+    #
+    #         kl_loss = kl_loss(z_m, z_s)
+    #         rec_loss = rec_loss(y_true, y_pred)
+    #         return K.mean(kl_loss + rec_loss)
+    #
+    #     # return K.mean(vae_loss)
+    #     return vae_loss
+
 ################################################################################
 class DenseDecoder:
 
