@@ -14,8 +14,202 @@ from tensorflow.keras.losses import mse
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.utils import plot_model
 
-from constants_VAE_outlier import spectra_path
+from constants_VAE_outlier import spectra_dir
+###############################################################################
+class DenseVAEv2:
+    """ VAE for outlier detection using tf.keras """
+    ############################################################################
 
+    def __init__(self, n_input_dimensions:'int', n_layers_encoder: 'list',
+        n_latent_dimensions:'int', n_layers_decoder: 'list')->'None':
+
+
+        self.n_input_dimensions = n_input_dimensions
+
+        self.n_layers_encoder = n_layers_encoder
+        self.n_latent_dimensions = n_latent_dimensions
+        self.n_layers_decoder = n_layers_decoder
+
+        self.inputs = Input(shape=(self.n_input_dimensions,),
+                            name='vae_input_layer')
+
+        self.latent_mu = None
+        self.latent_ln_sigma = None
+        self.encoder = self.build_encoder()
+
+        self.decoder = self.build_decoder()
+
+
+        self.loss = self.vae_loss()
+
+        self.vae = self.build_vae()
+    ############################################################################
+    def build_vae(self):
+
+        vae = Model(self.inputs, self.decoder(self.encoder(self.inputs)),
+            name='DenseVAE')
+
+        vae.compile(loss=self.loss, optimizer='adam')  # , lr = self.lr)
+
+        return vae
+    ############################################################################
+    def build_encoder(self)->'None':
+
+        X = self.inputs
+        std_dev = np.sqrt(2. / self.n_input_dimensions)
+
+        for idx, n_units in enumerate(self.n_layers_encoder):
+
+            w_init = keras.initializers.RandomNormal(mean=0., stddev=std_dev)
+
+            layer = Dense(n_units, name=f'encoder_layer_{idx+1}',
+                          activation='relu', kernel_initializer=w_init)(X)
+
+            X = layer
+
+            std_dev = np.sqrt(2. / n_units)
+
+            if n_units == self.n_layers_encoder[-1]:
+                latent = self._stochastic_layer(n_units, X)
+
+        encoder = Model(self.inputs, latent, name='DenseEncoder')
+
+        return encoder
+    ############################################################################
+    def _stochastic_layer(self, n_units:'int', X:'tf.keras.Dense')->'tf.keras.Lambda':
+
+        std_dev = np.sqrt(2. / n_units)
+
+        w_init = keras.initializers.RandomNormal(mean=0., stddev=std_dev)
+
+        self.latent_mu = Dense(self.n_latent_dimensions, name='latent_mu',
+            kernel_initializer=w_init)(X)
+
+        self.latent_ln_sigma = Dense(self.n_latent_dimensions,
+            name='latent_ln_sigma', kernel_initializer=w_init)(X)
+
+        latent = Lambda(self._sample_latent_features,
+                        output_shape=(self.n_latent_dimensions,),
+                        name='latent')([self.latent_mu, self.latent_ln_sigma])
+
+        return latent
+    ###########################################################################
+    def _sample_latent_features(self, distribution):
+
+        z_m, z_s = distribution
+        batch = K.shape(z_m)[0]
+        dim = K.int_shape(z_m)[1]
+        epsilon = K.random_normal(shape=(batch, dim))
+
+        return z_m + K.exp(0.5 * z_s) * epsilon
+    ############################################################################
+    def build_decoder(self)->'None':
+
+        input_layer = Input(shape=(self.n_latent_dimensions,),
+            name='decoder_input'
+        )
+
+        std_dev = np.sqrt(2. / self.n_latent_dimensions)
+
+        X = input_layer
+
+        for idx, n_units in enumerate(self.n_layers_decoder):
+
+            w_init = keras.initializers.RandomNormal(mean=0., stddev=std_dev)
+            std_dev = np.sqrt(2./n_units)
+
+            layer = Dense(n_units, name=f'layer_{idx+1}_decoder',
+                          activation='relu', kernel_initializer=w_init)(X)
+
+            X = layer
+
+            if n_units == self.n_layers_decoder[-1]:
+                output_layer = self._output_layer(n_units, X)
+
+        decoder = Model(input_layer, output_layer, name='DenseDecoder')
+
+        return decoder
+    ###########################################################################
+    def _output_layer(self, n_units, X)->'tf.keras.Dense':
+
+        std_dev = np.sqrt(2./n_units)
+
+        w_init = keras.initializers.RandomNormal(mean=0., stddev=std_dev)
+
+        output_layer = Dense(self.n_output_dimensions, name='decoder_output',
+            kernel_initializer=w_init)(X)
+
+        return output_layer
+    ############################################################################
+    def vae_loss(self):
+        return self.vae_loss_aux
+    ############################################################################
+    def vae_loss_aux(self, y_true, y_pred):
+
+        kl_loss = self.kl_loss()
+        rec_loss = self.rec_loss(y_true, y_pred)
+        return K.mean(kl_loss + rec_loss)
+    ############################################################################
+    def kl_loss(self):
+
+        z_m = self.latent_mu
+        z_s = self.latent_ln_sigma
+
+        kl_loss = 1 + z_s - K.square(z_m) - K.exp(z_s)
+
+        return -0.5 * K.sum(kl_loss, axis=-1)
+    ############################################################################
+    def rec_loss(self, y_true, y_pred):
+
+        return keras.losses.mse(y_true, y_pred)
+    ############################################################################
+    # def fit(self, spectra:'2D np.array', batch_size:'int'=None, epochs:'int'=1
+    #     )-> 'None':
+    #
+    #     self.vae.fit(x=spectra, y=spectra, epochs=epochs, batch_size=batch_size)
+    # ############################################################################
+    # def predict(self, spectra:'2D np.array')-> '2D np.array':
+    #
+    #     if spectra.ndim == 1:
+    #         spectra = spectra.reshape(1, -1)
+    #
+    #     return self.vae.predict(spectra)
+    # ############################################################################
+    # def encode(self, spectra:'2D np.array')-> '2D np.array':
+    #
+    #     if spectra.ndim == 1:
+    #         spectra = spectra.reshape(1, -1)
+    #     return self.encoder(spectra)
+    # ############################################################################
+    # def decode(self, coding:'2D np.array')->'2D np.aray':
+    #
+    #     if coding.ndim==1:
+    #         coding = coding.reshape(1,-1)
+    #
+    #     return self.decoder(coding)
+    # ############################################################################
+    # def save_vae(self, fname:'str'='DenseVAE'):
+    #
+    #     self.vae.save(f'{fname}')
+    # ############################################################################
+    # def save_encoder(self, fname:'str'='DenseEncoder'):
+    #
+    #     self.encoder.save(f'{fname}')
+    # ############################################################################
+    # def save_decoder(self, fname:'str'='DenseDecoder'):
+    #
+    #     self.decoder.save(f'{fname}')
+    # ############################################################################
+    # def plot_model(self):
+    #
+    #     plot_model(self.vae, to_file='DenseVAE.png', show_shapes='True')
+    #     plot_model(self.encoder, to_file='DenseEncoder.png', show_shapes='True')
+    #     plot_model(self.decoder, to_file='DenseDecoder.png', show_shapes='True')
+    # ############################################################################
+    # def summary(self):
+    #     self.encoder.summary()
+    #     self.decoder.summary()
+    #     self.vae.summary()
 ################################################################################
 class DataAnalysis:
     pass
@@ -39,10 +233,10 @@ class DenseVAE:
 
         self.vae = self.build_vae()
     ############################################################################
-    def fit(self, spectra:'2D np.array', batch_size:'int'=32,
-        epochs:'int'=20
-    )-> None:
-        self.vae.fit(spectra, spectra, epochs=epochs, batch_size=batch_size)
+    def fit(self, spectra:'2D np.array', batch_size:'int'=None, epochs:'int'=1
+        )-> 'None':
+
+        self.vae.fit(x=spectra, y=spectra, epochs=epochs, batch_size=batch_size)
     ############################################################################
     def predict(self, spectra:'2D np.array')-> '2D np.array':
 
@@ -66,8 +260,6 @@ class DenseVAE:
     ############################################################################
     def save_vae(self, fname:'str'='DenseVAE'):
 
-        self.encoder.save('encoder')
-        self.decoder.save('decoder')
         self.vae.save(f'{fname}')
     ############################################################################
     def save_encoder(self, fname:'str'='DenseEncoder'):
@@ -174,7 +366,6 @@ class DenseDecoder:
 
         return decoder
     ###########################################################################
-
     def _output_layer(self, n_units, X):
 
         std_dev = np.sqrt(2. / n_units)
@@ -257,7 +448,6 @@ class DenseEncoder:
 
         return latent
     ###########################################################################
-
     def _sample_latent_features(self, distribution):
 
         z_m, z_s = distribution

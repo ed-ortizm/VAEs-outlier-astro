@@ -1,4 +1,6 @@
 #!/usr/bin/env python3.8
+from tensorflow.python.framework.ops import disable_eager_execution
+disable_eager_execution()
 
 import os
 import sys
@@ -9,7 +11,7 @@ from sklearn.preprocessing import StandardScaler
 from tensorflow import keras
 
 from constants_VAE_outlier import normalization_schemes
-from constants_VAE_outlier import spectra_path
+from constants_VAE_outlier import spectra_dir, working_dir
 from lib_VAE_outlier import DenseEncoder, DenseDecoder, DenseVAE
 ###############################################################################
 ti = time.time()
@@ -35,7 +37,7 @@ else:
 
 ###############################################################################
 # Relevant directories
-training_data_dir = f'{spectra_path}/normalized_data'
+training_data_dir = f'{spectra_dir}/normalized_data'
 ###############################################################################
 # Loading training data
 
@@ -73,7 +75,15 @@ decoder = DenseDecoder(n_latent_dimensions=n_latent_dimensions,
 vae = DenseVAE(encoder=encoder, decoder=decoder)
 vae.summary()
 ###############################################################################
+# Training the model
+
+vae.fit(spectra=training_set)
 ###############################################################################
+# Defining directorie to save the model once it is trained
+models_dir = f'{working_dir}/models'
+
+if not os.path.exists(models_dir):
+    os.makedirs(models_dir, exist_ok=True)
 ###############################################################################
 tf = time.time()
 print(f'Running time: {tf-ti:.2f}')
