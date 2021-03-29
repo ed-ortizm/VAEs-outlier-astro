@@ -80,7 +80,8 @@ class DenseVAE:
         vae = Model(self.inputs, self.decoder(self.encoder(self.inputs)),
             name='DenseVAE')
         adam_optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
-        vae.compile(loss=self.loss, optimizer=adam_optimizer)
+        vae.compile(loss='mse', optimizer=adam_optimizer)
+#        vae.compile(loss=self.loss, optimizer=adam_optimizer)
         return vae
     ############################################################################
     def build_encoder(self)->'None':
