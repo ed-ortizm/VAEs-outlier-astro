@@ -41,9 +41,169 @@ def input_handler(script_arguments:'list'):
 
 
     return n_spectra, normalization_type, local
-
 ###############################################################################
-class DenseVAE:
+class AEDense:
+    """ VAE for outlier detection using tf.keras """
+    ############################################################################
+    def __init__(self, n_input_dimensions:'int', n_layers_encoder: 'list',
+        n_latent_dimensions:'int', n_layers_decoder: 'list', batch_size:'int',
+        epochs:'int', learning_rate:'float', loss:'str')->'None':
+
+
+        self.n_input_dimensions = n_input_dimensions
+
+        self.n_layers_encoder = n_layers_encoder
+        self.n_latent_dimensions = n_latent_dimensions
+        self.n_layers_decoder = n_layers_decoder
+        self.batch_size = batch_size
+        self.epochs = epochs
+        self.loss = loss
+
+        self.inputs = Input(shape=(self.n_input_dimensions,),
+                            name='ae_input_layer')
+
+        self.encoder = self.build_encoder()
+
+        self.decoder = self.build_decoder()
+
+
+
+        self.learning_rate = learning_rate
+        self.ae = self.build_ae()
+    ############################################################################
+    def build_ae(self):
+
+        ae = Model(self.inputs, self.decoder(self.encoder(self.inputs)),
+            name='DenseAE')
+
+        adam_optimizer = tf.keras.optimizers.Adam(
+            learning_rate=self.learning_rate)
+
+        ae.compile(loss=self.loss, optimizer=adam_optimizer)
+
+        return ae
+    ############################################################################
+    def build_encoder(self)->'tf.keras.model':
+
+        X = self.inputs
+        std_dev = np.sqrt(2. / self.n_input_dimensions)
+
+        for idx, n_units in enumerate(self.n_layers_encoder):
+
+            w_init = keras.initializers.RandomNormal(mean=0., stddev=std_dev)
+
+            layer = Dense(n_units, name=f'encoder_layer_{idx+1}',
+                          activation='relu', kernel_initializer=w_init)(X)
+
+            X = layer
+
+            std_dev = np.sqrt(2. / n_units)
+
+            if n_units == self.n_layers_encoder[-1]:
+                latent_layer = self._latent_layer(n_units, X)
+
+        encoder = Model(self.inputs, latent_layer, name='DenseEncoder')
+
+        return encoder
+    ###########################################################################
+    def _latent_layer(self, n_units:'int', X:'tf.keras.Dense')->'tf.keras.Dense':
+
+        std_dev = np.sqrt(2./n_units)
+
+        w_init = keras.initializers.RandomNormal(mean=0., stddev=std_dev)
+
+        latent_layer = Dense(self.n_latent_dimensions, name='latent_layer',
+        activation='relu', kernel_initializer=w_init)(X)
+
+        return latent_layer
+    ###########################################################################
+    def build_decoder(self)->'tf.keras.model':
+
+        input_decoder = Input(shape=(self.n_latent_dimensions,),
+            name='decoder_input'
+        )
+
+        std_dev = np.sqrt(2. / self.n_latent_dimensions)
+
+        X = input_decoder
+
+        for idx, n_units in enumerate(self.n_layers_decoder):
+
+            w_init = keras.initializers.RandomNormal(mean=0., stddev=std_dev)
+            std_dev = np.sqrt(2./n_units)
+
+            layer = Dense(n_units, name=f'layer_{idx+1}_decoder',
+                          activation='relu', kernel_initializer=w_init)(X)
+
+            X = layer
+
+            if n_units == self.n_layers_decoder[-1]:
+                output_layer = self._output_layer(n_units, X)
+
+        decoder = Model(input_decoder, output_layer, name='DenseDecoder')
+
+        return decoder
+    ###########################################################################
+    def _output_layer(self, n_units:'int', X:'tf.keras.Dense')->'tf.keras.Dense':
+
+        std_dev = np.sqrt(2./n_units)
+
+        w_init = keras.initializers.RandomNormal(mean=0., stddev=std_dev)
+
+        output_layer = Dense(self.n_input_dimensions, name='decoder_output',
+        activation='relu', kernel_initializer=w_init)(X)
+
+        return output_layer
+    ############################################################################
+    def fit(self, spectra:'2D np.array')-> 'None':
+
+        self.ae.fit(x=spectra, y=spectra, epochs=self.epochs,
+            batch_size=self.batch_size, verbose=1)
+    ############################################################################
+    def predict(self, spectra:'2D np.array')-> '2D np.array':
+
+        if spectra.ndim == 1:
+            spectra = spectra.reshape(1, -1)
+
+        return self.ae.predict(spectra)
+    ############################################################################
+    def encode(self, spectra:'2D np.array')-> '2D np.array':
+
+        if spectra.ndim == 1:
+            spectra = spectra.reshape(1, -1)
+        return self.encoder(spectra)
+    ############################################################################
+    def decode(self, coding:'2D np.array')->'2D np.aray':
+
+        if coding.ndim==1:
+            coding = coding.reshape(1,-1)
+
+        return self.decoder(coding)
+    ############################################################################
+    def save_ae(self, fpath:'str'):
+
+        self.ae.save(f'{fpath}')
+    ############################################################################
+    def save_encoder(self, fpath:'str'):
+
+        self.encoder.save(f'{fpath}')
+    ############################################################################
+    def save_decoder(self, fpath:'str'):
+
+        self.decoder.save(f'{fpath}')
+    ############################################################################
+    def plot_model(self):
+
+        plot_model(self.ae, to_file='DenseVAE.png', show_shapes='True')
+        plot_model(self.encoder, to_file='DenseEncoder.png', show_shapes='True')
+        plot_model(self.decoder, to_file='DenseDecoder.png', show_shapes='True')
+    ############################################################################
+    def summary(self):
+        self.encoder.summary()
+        self.decoder.summary()
+        self.ae.summary()
+###############################################################################
+class VAEDense:
     """ VAE for outlier detection using tf.keras """
     ############################################################################
     def __init__(self, n_input_dimensions:'int', n_layers_encoder: 'list',
