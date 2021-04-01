@@ -23,10 +23,10 @@ def input_handler(script_arguments:'list'):
     local = script_arguments[1]=='local'
 
     if local:
-        print('We are in local')
+        print('We are in local\n')
         n_spectra = 1_000
     else:
-        print('We are in remote')
+        print('We are in remote\n')
         n_spectra = int(script_arguments[2])
 
     if script_arguments[3] in normalization_schemes:
@@ -41,6 +41,46 @@ def input_handler(script_arguments:'list'):
 
 
     return n_spectra, normalization_type, local
+###############################################################################
+class LoadAE:
+    """ Load AE for outlier detection using tf.keras """
+    ############################################################################
+    def __init__(self, ae_path, encoder_path, decoder_path)->'None':
+
+        self.ae = keras.models.load_model(f'{ae_path}')
+        self.encoder = keras.models.load_model(f'{encoder_path}')
+        self.decoder = keras.models.load_model(f'{decoder_path}')
+    ############################################################################
+    def predict(self, spectra:'2D np.array')-> '2D np.array':
+
+        if spectra.ndim == 1:
+            spectra = spectra.reshape(1, -1)
+
+        return self.ae.predict(spectra)
+    ############################################################################
+    def encode(self, spectra:'2D np.array')-> '2D np.array':
+
+        if spectra.ndim == 1:
+            spectra = spectra.reshape(1, -1)
+        return self.encoder(spectra)
+    ############################################################################
+    def decode(self, coding:'2D np.array')->'2D np.aray':
+
+        if coding.ndim==1:
+            coding = coding.reshape(1,-1)
+
+        return self.decoder(coding)
+    ############################################################################
+    def plot_model(self):
+
+        plot_model(self.ae, to_file='DenseVAE.png', show_shapes='True')
+        plot_model(self.encoder, to_file='DenseEncoder.png', show_shapes='True')
+        plot_model(self.decoder, to_file='DenseDecoder.png', show_shapes='True')
+    ############################################################################
+    def summary(self):
+        self.encoder.summary()
+        self.decoder.summary()
+        self.ae.summary()
 ###############################################################################
 class AEDense:
     """ VAE for outlier detection using tf.keras """
@@ -76,8 +116,7 @@ class AEDense:
         ae = Model(self.inputs, self.decoder(self.encoder(self.inputs)),
             name='DenseAE')
 
-        adam_optimizer = tf.keras.optimizers.Adam(
-            learning_rate=self.learning_rate)
+        adam_optimizer = Adam(learning_rate=self.learning_rate)
 
         ae.compile(loss=self.loss, optimizer=adam_optimizer)
 
@@ -239,7 +278,7 @@ class VAEDense:
 
         vae = Model(self.inputs, self.decoder(self.encoder(self.inputs)),
             name='DenseVAE')
-        adam_optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
+        adam_optimizer = Adam(learning_rate=self.learning_rate)
 #        vae.compile(loss='mse', optimizer=adam_optimizer)
         vae.compile(loss=self.loss, optimizer=adam_optimizer)
         return vae

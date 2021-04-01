@@ -1,8 +1,4 @@
 #!/usr/bin/env python3.8
-# https://github.com/tensorflow/tensorflow/issues/47311
-# https://stackoverflow.com/questions/65366442/cannot-convert-a-symbolic-keras-input-output-to-a-numpy-array-typeerror-when-usi
-# from tensorflow.python.framework.ops import disable_eager_execution
-# disable_eager_execution()
 
 import os
 import sys
@@ -81,8 +77,8 @@ if local:
 
     print('Saving model trained in local machine')
     ae.save_ae(f'{models_dir}/{ae_name}_{local}')
-    ae.save_encoder(f'{models_dir}/{encoder_name}_{local}')
-    ae.save_decoder(f'{models_dir}/{decoder_name}_{local}')
+    ae.save_encoder(f'{models_dir}/{encoder_name}_local')
+    ae.save_decoder(f'{models_dir}/{decoder_name}_local')
 
 else:
     ae.save_ae(f'{models_dir}/{ae_name}')
