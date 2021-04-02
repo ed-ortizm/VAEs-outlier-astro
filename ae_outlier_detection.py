@@ -17,7 +17,9 @@ training_data_dir = f'{spectra_dir}/normalized_data'
 generated_data_dir = f'{spectra_dir}/AE_outlier'
 if not os.path.exists(generated_data_dir):
     os.makedirs(generated_data_dir)
-models_dir = f'{working_dir}/models/AE'
+
+layers_str = '100_50_5_50_100'
+models_dir = f'{working_dir}/models/AE/{layers_str}'
 ###############################################################################
 # Loading training data
 training_set_name = f'spectra_{n_spectra}_{normalization_type}'
@@ -54,9 +56,9 @@ else:
 
 
     # Loading models
-    ae_name = f'DenseAE_mse_{n_spectra}'
-    encoder_name = f'DenseEncoder_mse_{n_spectra}'
-    decoder_name = f'DenseDecoder_mse_{n_spectra}'
+    ae_name = f'DenseAE_mse_{n_spectra}_{layers_str}'
+    encoder_name = f'DenseEncoder_mse_{n_spectra}_{layers_str}'
+    decoder_name = f'DenseDecoder_mse_{n_spectra}_{layers_str}'
 
     if local:
 

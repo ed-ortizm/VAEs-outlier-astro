@@ -70,12 +70,17 @@ ae.fit(spectra=training_set[:, :-5])
 models_dir = f'{working_dir}/models/AE'
 
 if not os.path.exists(models_dir):
-    os.makedirs(models_dir, exist_ok=True)
+    os.makedirs(models_dir)
 # Models names
 # layers for name
 layers_encoder_str = '_'.join(str(unit) for unit in n_layers_encoder)
 layers_decoder_str = '_'.join(str(unit) for unit in n_layers_decoder)
 layers_str = f'{layers_encoder_str}_{n_latent_dimensions}_{layers_decoder_str}'
+
+models_dir = f'{models_dir}/{layers_str}'
+
+if not os.path.exists(models_dir):
+    os.makedirs(models_dir)
 
 ae_name = f'DenseAE_{loss}_{n_galaxies}_{layers_str}'
 encoder_name = f'DenseEncoder_{loss}_{n_galaxies}_{layers_str}'
@@ -84,7 +89,7 @@ decoder_name = f'DenseDecoder_{loss}_{n_galaxies}_{layers_str}'
 if local:
 
     print('Saving model trained in local machine')
-    ae.save_ae(f'{models_dir}/{ae_name}_{local}')
+    ae.save_ae(f'{models_dir}/{ae_name}_local')
     ae.save_encoder(f'{models_dir}/{encoder_name}_local')
     ae.save_decoder(f'{models_dir}/{decoder_name}_local')
 
