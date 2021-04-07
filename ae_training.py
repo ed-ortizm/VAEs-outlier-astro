@@ -56,7 +56,7 @@ print(f'Batch size is: {batch_size}')
 if local:
     epochs = 5
 else:
-    epochs = 20
+    epochs = 15
 
 learning_rate = float(sys.argv[6]) # default: 0.001
 loss = 'mse'
