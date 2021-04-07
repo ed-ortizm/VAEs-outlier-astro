@@ -13,6 +13,8 @@ from lib_VAE_outlier import input_handler
 ti = time.time()
 ###############################################################################
 n_spectra, normalization_type, local = input_handler(script_arguments=sys.argv)
+layers_list = [int(n_units) for n_units in sys.argv[4].split('_')]
+n_layers_list = len(layers_list)
 ###############################################################################
 # Relevant directories
 training_data_dir = f'{spectra_dir}/normalized_data'
@@ -35,17 +37,20 @@ else:
 # Parameters for the AEDense
 n_galaxies = training_set.shape[0]
 n_input_dimensions = training_set[:, :-5].shape[1]
-n_latent_dimensions = 5
+n_middle = int((n_layers_list-1)/2)
+n_latent_dimensions = layers_list[n_middle]
+print(f'n_latent: {n_latent_dimensions}')
 ###########################################
 # encoder
-n_layers_encoder = [100, 50]
-
+n_layers_encoder = layers_list[ : n_middle]
+print(f'n_encoder: {n_layers_encoder}')
 # decoder
-n_layers_decoder = [50, 100]
+n_layers_decoder = layers_list[n_middle+1 : ]
+print(f'n_decoder: {n_layers_decoder}')
 
 # Other parameters
 # 1% to take advantage of stochastic part of stochastic gradient descent
-batch_size = int(n_galaxies*0.01)
+batch_size = int(sys.argv[5])
 print(f'Batch size is: {batch_size}')
 
 if local:
@@ -53,7 +58,7 @@ if local:
 else:
     epochs = 20
 
-learning_rate = 0.001 # default: 0.001
+learning_rate = float(sys.argv[6]) # default: 0.001
 loss = 'mse'
 
 ae = AEDense(n_input_dimensions, n_layers_encoder, n_latent_dimensions,
