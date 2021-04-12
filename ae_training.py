@@ -8,7 +8,7 @@ import time
 import numpy as np
 
 from constants_VAE_outlier import spectra_dir, working_dir
-# from lib_VAE_outlier import AEDense
+from lib_VAE_outlier import AEDense
 from lib_VAE_outlier import load_data
 ###############################################################################
 ti = time.time()
@@ -24,6 +24,7 @@ parser.add_argument('--decoder_layers', type=str)
 parser.add_argument('--normalization_type', '-n_type', type=str)
 parser.add_argument('--latent_dimensions', '-lat_dims', type=int)
 parser.add_argument('--epochs', type=int)
+parser.add_argument('--loss', type=str)
 
 script_arguments = parser.parse_args()
 
@@ -40,7 +41,10 @@ layers_encoder = [int(number_units) for number_units
 layers_decoder = [int(number_units) for number_units
     in script_arguments.decoder_layers.split('_')]
 
- epochs = script_arguments.epochs
+epochs = script_arguments.epochs
+loss = script_arguments.loss
+batch_size = script_arguments.batch_size
+learning_rate = script_arguments.learning_rate
 ################################################################################
 # Relevant directories
 training_data_dir = f'{spectra_dir}/normalized_data'
@@ -54,18 +58,18 @@ np.random.shuffle(training_set)
 # Parameters for the AEDense
 number_input_dimensions = training_set[:, :-5].shape[1]
 ###########################################
-# loss = 'mse'
-#
-# ae = AEDense(n_input_dimensions, layers_encoder, n_latent_dimensions,
-#     layers_decoder, batch_size, epochs, learning_rate, loss)
-#
-# ae.summary()
-# ###############################################################################
-# # Training the model
-#
-# ae.fit(spectra=training_set[:, :-5])
-# # PEnding to track history
-# ###############################################################################
+ae = AEDense(number_input_dimensions, layers_encoder, number_latent_dimensions,
+    layers_decoder, batch_size, epochs, learning_rate, loss)
+
+ae.summary()
+print(number_input_dimensions, layers_encoder, number_latent_dimensions,
+    layers_decoder, batch_size, epochs, learning_rate, loss)
+###############################################################################
+# Training the model
+
+history = ae.fit(spectra=training_set[:, :-5])
+print(type(history))
+###############################################################################
 # # Defining directorie to save the model once it is trained
 # models_dir = f'{working_dir}/models/AE'
 #

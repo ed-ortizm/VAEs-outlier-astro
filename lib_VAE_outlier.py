@@ -1,4 +1,5 @@
 from glob import glob
+import os
 import sys
 
 import matplotlib.pyplot as plt
@@ -208,8 +209,8 @@ class AEDense:
     ############################################################################
     def fit(self, spectra:'2D np.array')-> 'None':
 
-        self.ae.fit(x=spectra, y=spectra, epochs=self.epochs,
-            batch_size=self.batch_size, verbose=1)
+        return self.ae.fit(x=spectra, y=spectra, epochs=self.epochs,
+            batch_size=self.batch_size, verbose=2)
     ############################################################################
     def save_ae(self, fpath:'str'):
 
