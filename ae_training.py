@@ -109,10 +109,10 @@ generated_data_dir = f'{spectra_dir}/AE_outlier/{layers_str}/{number_spectra}'
 if not os.path.exists(generated_data_dir):
     os.makedirs(generated_data_dir)
 
-tail_reconstructed = (f'{loss}_{layers_str}_nType_{normalization_type}')
+tail_reconstructed = f'AE_{layers_str}_loss_{loss}'
 
 reconstructed_set_name = (
-    f'{train_set_name}_{tail_reconstructed}_reconstructed')
+    f'{train_set_name}_reconstructed_{tail_reconstructed}')
 
 if local:
     reconstructed_set_name = f'{reconstructed_set_name}_local'

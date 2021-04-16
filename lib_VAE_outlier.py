@@ -611,7 +611,7 @@ class Outlier:
         if self.custom:
             self.custom_metric = custom_metric
     ############################################################################
-    def score(self, O, R):
+    def score(self, O, R, percentages):
         """
         Computes the outlier score according to the metric used to instantiate
         the class.
@@ -635,14 +635,12 @@ class Outlier:
 
         elif self.metric == 'mse':
             print(f'Computing the outlier scores')
-            return self._mse(O=O, R=R)
+            return self._mse(O=O, R=R, percentages=percentages)
 
         elif self.metric == 'chi2':
-            print(f'Computing the predictions of {model_name}')
             return self._chi2(O=O, R=R)
 
         elif self.metric == 'mad':
-            print(f'Computing the predictions of {model_name}')
             return self._mad(O=O, R=R)
 
         elif self.metric == 'lp':
@@ -651,7 +649,6 @@ class Outlier:
                 print(f'For the {self.metric} metric you need p')
                 return None
 
-            print(f'Computing the predictions of {model_name}')
             return self._lp(O=O, R=R)
 
         else:
@@ -713,7 +710,7 @@ class Outlier:
         pass
 # Mahalanobis, Canberra, Braycurtis, and KL-divergence
     ############################################################################
-    def _mse(self, O, R):
+    def _mse(self, O, R, percentages):
         """
         Computes the mean square error for the reconstruction of the input
         objects
@@ -730,7 +727,26 @@ class Outlier:
             present in O
         """
 
-        return np.square(R - O).sum(axis=1)
+        outlier_scores = []
+        for percentage in percentages:
+
+            mse = np.square(R - O)
+
+            number_outlier_fluxes = int(percentage*mse.shape[1])
+
+            highest_mse = np.argpartition(
+                mse, -1 * number_outlier_fluxes,
+                axis=1)[:, -1 * number_outlier_fluxes:]
+
+            score = np.empty(highest_mse.shape)
+
+            for n, idx in enumerate(highest_mse):
+
+                score[n, :] = mse[n, idx]
+
+            outlier_scores.append(score.sum(axis=1))
+
+        return outlier_scores
     ############################################################################
     def _chi2(self, O, R):
         """
