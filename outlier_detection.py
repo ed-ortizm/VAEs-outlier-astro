@@ -108,6 +108,8 @@ for metric in metrics:
 
         spec_top_outliers = training_set[outlier_ids]
 
+        spec_top_outliers = np.insert(spec_top_outliers, 0, outlier_ids)
+
         np.save(f'{generated_data_dir}/{spec_top_outliers_name}.npy',
             spec_top_outliers)
         ########################################################################
@@ -123,6 +125,8 @@ for metric in metrics:
             f'nTop_{number_top_spectra}_{tail_outlier_name}')
 
         spec_top_normal = training_set[normal_ids]
+
+        spec_top_normal = np.insert(spec_top_normal, 0, normal_ids)
 
         np.save(f'{generated_data_dir}/{spec_top_normal_name}.npy',
             spec_top_normal)
