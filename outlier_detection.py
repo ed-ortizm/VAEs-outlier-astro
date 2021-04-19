@@ -7,7 +7,9 @@ import time
 import numpy as np
 
 from constants_VAE_outlier import spectra_dir, working_dir
-from lib_VAE_outlier import load_data, Outlier
+from library_outlier import Outlier
+from lib_VAE_outlier import load_data
+
 ###############################################################################
 ti = time.time()
 ###############################################################################
