@@ -2,6 +2,7 @@
 from argparse import ArgumentParser
 import glob
 import os
+import sys
 import time
 
 import numpy as np
@@ -12,61 +13,84 @@ from lib_VAE_outlier import load_data
 
 ###############################################################################
 ti = time.time()
-###############################################################################
+################################################################################
 parser = ArgumentParser()
-
+############################################################################
 parser.add_argument('--server', '-s', type=str)
 parser.add_argument('--number_spectra','-n_spec', type=int)
-parser.add_argument('--encoder_layers', type=str)
-parser.add_argument('--decoder_layers', type=str)
 parser.add_argument('--normalization_type', '-n_type', type=str)
-parser.add_argument('--latent_dimensions', '-lat_dims', type=int)
-parser.add_argument('--metrics', type=str, nargs='+')
+############################################################################
 parser.add_argument('--model', type=str)
-parser.add_argument('--top_spectra', '-top', type=int)
+parser.add_argument('--encoder_layers', type=str)
+parser.add_argument('--latent_dimensions', '-lat_dims', type=int)
+parser.add_argument('--decoder_layers', type=str)
 parser.add_argument('--loss', type=str)
-
+############################################################################
+parser.add_argument('--number_snr', '-n_snr', type=int)
+############################################################################
+parser.add_argument('--metrics', type=str, nargs='+')
+parser.add_argument('--top_spectra', '-top', type=int)
+############################################################################
 script_arguments = parser.parse_args()
 ################################################################################
+local = script_arguments.server == 'local'
 number_spectra = script_arguments.number_spectra
 normalization_type = script_arguments.normalization_type
-local = script_arguments.server == 'local'
-
-number_latent_dimensions = script_arguments.latent_dimensions
-layers_encoder = script_arguments.encoder_layers
-layers_decoder = script_arguments.decoder_layers
-
-metrics = script_arguments.metrics
+############################################################################
 model = script_arguments.model
-number_top_spectra = script_arguments.top_spectra
-
+layers_encoder = script_arguments.encoder_layers
+number_latent_dimensions = script_arguments.latent_dimensions
+layers_decoder = script_arguments.decoder_layers
 loss = script_arguments.loss
+layers_str = f'{layers_encoder}_{number_latent_dimensions}_{layers_decoder}'
+############################################################################
+number_snr = script_arguments.number_snr
+############################################################################
+metrics = script_arguments.metrics
+number_top_spectra = script_arguments.top_spectra
 ################################################################################
 # Relevant directories
-layers_str = f'{layers_encoder}_{number_latent_dimensions}_{layers_decoder}'
-print(layers_str, number_spectra, normalization_type, metrics, model, local)
-training_data_dir = f'{spectra_dir}/normalized_data'
-generated_data_dir = f'{spectra_dir}/AE_outlier/{layers_str}/{number_spectra}'
-###############################################################################
-# Loading training data
-train_set_name = f'spectra_{number_spectra}_{normalization_type}'
-train_set_path = f'{training_data_dir}/{train_set_name}.npy'
+data_dir = f'{spectra_dir}/procesesed_spectra'
+generated_data_dir = f'{spectra_dir}/{model}_outlier/{layers_str}/{number_snr}'
+################################################################################
+# Loading data
+data_set_name = f'spectra_{number_spectra}_{normalization_type}'
+############################################################################
+train_set_name = f'{data_set_name}_nSnr_{number_snr}_train'
+train_set_path = f'{data_dir}/{train_set_name}.npy'
 
-training_set = load_data(train_set_name, train_set_path)
-###############################################################################
-# Loading a reconstructed data
-tail_reconstructed = f'AE_{layers_str}_loss_{loss}'
+train_set = load_data(train_set_name, train_set_path)
+############################################################################
+test_set_name = f'{data_set_name}_nSnr_{number_snr}_test'
+test_set_path = f'{data_dir}/{test_set_name}.npy'
 
-reconstructed_set_name = (
-    f'{train_set_name}_reconstructed_{tail_reconstructed}')
+test_set = load_data(test_set_name, test_set_path)
+################################################################################
+# Reconstructed data for outlier detection
+tail_model_name = (f'{layers_str}_loss_{loss}_nTrain_{number_snr}_'
+    f'nType_{normalization_type}')
+
+tail_reconstructed = f'reconstructed_{model}_{tail_model_name}'
+############################################################################
+reconstructed_train_set_name = f'{train_set_name}_{tail_reconstructed}'
+reconstructed_test_set_name = f'{test_set_name}_{tail_reconstructed}'
 
 if local:
-    reconstructed_set_name = f'{reconstructed_set_name}_local'
+    reconstructed_train_set_name = f'{reconstructed_train_set_name}_local'
+    reconstructed_test_set_name = f'{reconstructed_test_set_name}_local'
+############################################################################
+reconstructed_train_set_path = (
+    f'{generated_data_dir}/{reconstructed_train_set_name}.npy')
 
-reconstructed_set_path = f'{generated_data_dir}/{reconstructed_set_name}.npy'
+train_set = load_data(reconstructed_train_set_name,
+    reconstructed_train_set_path)
+############################################################################
+reconstructed_test_set_path = (
+    f'{generated_data_dir}/{reconstructed_test_set_name}.npy')
 
-reconstructed_set = load_data(reconstructed_set_name, reconstructed_set_path)
-###############################################################################
+test_set = = load_data(reconstructed_test_set_name,
+    reconstructed_test_set_path)
+################################################################################
 # Outlier detection
 tail_outlier_name = f'{model}_{layers_str}_loss_{loss}_{number_spectra}'
 
@@ -77,7 +101,7 @@ for metric in metrics:
     outlier = Outlier(metric=metric)
     ############################################################################
     percentages = [0.1, 0.2, 0.3, 0.4, 0.5, 0.75, 1.0]
-    outlier_scores = outlier.score(O=training_set[:, :-5],
+    outlier_scores = outlier.score(O=train_set[:, :-5],
         R=reconstructed_set, percentages=percentages)
 
     for idx, o_scores in enumerate(outlier_scores):
@@ -106,7 +130,7 @@ for metric in metrics:
         spec_top_outliers_name = (f'{metric}_outlier_spectra_{percentage}_'
             f'nTop_{number_top_spectra}_{tail_outlier_name}')
 
-        spec_top_outliers = training_set[outlier_ids]
+        spec_top_outliers = train_set[outlier_ids]
 
         spec_top_outliers = np.insert(spec_top_outliers, 0, outlier_ids)
 
@@ -124,7 +148,7 @@ for metric in metrics:
         spec_top_normal_name = (f'{metric}_normal_spectra_{percentage}_'
             f'nTop_{number_top_spectra}_{tail_outlier_name}')
 
-        spec_top_normal = training_set[normal_ids]
+        spec_top_normal = train_set[normal_ids]
 
         spec_top_normal = np.insert(spec_top_normal, 0, normal_ids)
 

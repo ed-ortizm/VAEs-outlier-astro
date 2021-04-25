@@ -15,8 +15,8 @@ ti = time.time()
 ###############################################################################
 parser = ArgumentParser()
 parser.add_argument('--server', '-s', type=str)
-parser.add_argument('--normalization_type', '-n_type', type=str)
 parser.add_argument('--number_spectra','-n_spec', type=int)
+parser.add_argument('--normalization_type', '-n_type', type=str)
 ############################################################################
 parser.add_argument('--encoder_layers', type=str)
 parser.add_argument('--latent_dimensions', '-lat_dims', type=int)
@@ -63,7 +63,7 @@ models_dir = f'{models_dir}/{layers_str}'
 if not os.path.exists(models_dir):
     os.makedirs(models_dir)
 ##########################################################################
-generated_data_dir = f'{spectra_dir}/AE_outlier/{layers_str}/{number_spectra}'
+generated_data_dir = f'{spectra_dir}/AE_outlier/{layers_str}/{number_snr}'
 if not os.path.exists(generated_data_dir):
     os.makedirs(generated_data_dir)
 ################################################################################
