@@ -86,17 +86,17 @@ empty36_number = np.count_nonzero(empty36_mask)
 print(f'empty: {empty36_number}, normal: {normal36_number}')
 ############################################################################
 # Save test set
-test_set = np.vstack((data[~normal36_mask], data[~empty36_mask]))
+test_set = data[~normal36_mask] #np.vstack((data[~normal36_mask], data[~empty36_mask]))
 
-test_set_name = f'{data_set_name}_nSnr_{number_snr}_test'
+test_set_name = f'{data_set_name}_nSnr_{number_snr}_noSF_test'
 test_set_path = f'{data_dir}/{test_set_name}.npy'
 
 np.save(f'{test_set_path}', test_set)
 ############################################################################
-train_set = np.vstack((data[normal36_mask], data[empty36_mask]))
+train_set = data[normal36_mask] #np.vstack((data[normal36_mask], data[empty36_mask]))
 
 # Save train set
-train_set_name = f'{data_set_name}_nSnr_{number_snr}_train'
+train_set_name = f'{data_set_name}_nSnr_{number_snr}_SF_train'
 train_set_path = f'{data_dir}/{train_set_name}.npy'
 
 np.save(f'{train_set_path}', train_set)
