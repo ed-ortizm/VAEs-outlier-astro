@@ -130,7 +130,7 @@ for metric in metrics:
             f'outlier_nTop_{number_top_spectra}_{scores_name}')
 
         spec_top_outliers = train_set[outlier_ids]
-        spec_top_outliers = np.insert(spec_top_outliers, 0, outlier_ids)
+        spec_top_outliers = np.insert(spec_top_outliers, 0, outlier_ids, axis=1)
 
         np.save(f'{scores_dir}/{spec_top_outliers_name}.npy', spec_top_outliers)
         ########################################################################
@@ -146,7 +146,7 @@ for metric in metrics:
 
         spec_top_normal = train_set[normal_ids]
 
-        spec_top_normal = np.insert(spec_top_normal, 0, normal_ids)
+        spec_top_normal = np.insert(spec_top_normal, 0, normal_ids, axis=1)
 
         np.save(f'{scores_dir}/{spec_top_normal_name}.npy', spec_top_normal)
         ########################################################################
@@ -185,7 +185,7 @@ for metric in metrics:
             f'outlier_nTop_{number_top_spectra}_{scores_name}')
 
         spec_top_outliers = test_set[outlier_ids]
-        spec_top_outliers = np.insert(spec_top_outliers, 0, outlier_ids)
+        spec_top_outliers = np.insert(spec_top_outliers, 0, outlier_ids, axis=1)
 
         np.save(f'{scores_dir}/{spec_top_outliers_name}.npy', spec_top_outliers)
         ########################################################################
@@ -201,7 +201,7 @@ for metric in metrics:
 
         spec_top_normal = test_set[normal_ids]
 
-        spec_top_normal = np.insert(spec_top_normal, 0, normal_ids)
+        spec_top_normal = np.insert(spec_top_normal, 0, normal_ids, axis=1)
 
         np.save(f'{scores_dir}/{spec_top_normal_name}.npy', spec_top_normal)
         ########################################################################
