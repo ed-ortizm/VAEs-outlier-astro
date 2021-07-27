@@ -1,6 +1,6 @@
-#!/usr/bin/env python3.8
+#!/usr/bin/env python3
+from argparse import ArgumentParser
 from configparser import ConfigParser
-# import configparser as cf_parser
 import os
 import sys
 import time
@@ -13,55 +13,39 @@ from lib_VAE_outlier import plot_history
 ###############################################################################
 ti = time.time()
 ###############################################################################
-# parser = ArgumentParser()
-# parser.add_argument('--server', '-s', type=str)
-# parser.add_argument('--number_spectra','-n_spec', type=int)
-# parser.add_argument('--normalization_type', '-n_type', type=str)
-# ############################################################################
-# parser.add_argument('--encoder_layers', type=str)
-# parser.add_argument('--latent_dimensions', '-lat_dims', type=int)
-# parser.add_argument('--decoder_layers', type=str)
-# parser.add_argument('--loss', type=str)
-# parser.add_argument('--learning_rate', '-lr', type=float)
-# parser.add_argument('--batch_size','-bs', type=int)
-# parser.add_argument('--epochs', type=int)
-# ############################################################################
-# parser.add_argument('--number_snr', '-n_snr', type=int)
-############################################################################
-# script_arguments = parser.parse_args()
-################################################################################
+parser = ArgumentParser()
+parser.add_argument('--server', '-s', type=str)
+script_arguments = parser.parse_args()
+local = script_arguments.server == 'local'
+###############################################################################
+# read them from the configuration file
 parser = ConfigParser()
 parser.read('ae.ini')
+    ############################################################################
+# network architecture
+encoder_str = parser.get('network architecture', 'encoder_layers')
+layers_encoder = [int(units) for units in encoder_str.split('_')]
+
+latent_dimensions = parser.getint('network architecture', 'latent_dimensions')
+
+decoder_str = parser.get('network architecture', 'decoder_layers')
+layers_decoder = [int(units) for units in decoder_str.split('_')]
+
+layers_str = f'{encoder_str}_{latent_dimensions}_{decoder_str}'
+    ############################################################################
+# network hyperparameters
+loss = parser.get('network hyper-parameters', 'loss')
+learning_rate = parser.getfloat('network hyper-parameters', 'learning_rate')
+batch_size = parser.getint('network hyper-parameters', 'batch_size')
+epochs = parser.getint('network hyper-parameters', 'epochs')
+    ############################################################################
+# data parameters
+normalization_type = parser.get('data hyper-parameters', 'normalization_type')
+number_spectra = parser.getint('data hyper-parameters', 'number_spectra')
+number_snr = parser.getint('data hyper-parameters', 'number_snr')
+    ############################################################################
 ################################################################################
-# local = script_arguments.server == 'local'
-# normalization_type = script_arguments.normalization_type
-# number_spectra = script_arguments.number_spectra
-##########################################################################
-section = 'network architecture'
-if parser.has_section(section):
-    print('hello')
-# encoder_str = script_arguments.encoder_layers
-#
-# layers_encoder = [int(number_units) for number_units
-#     in script_arguments.encoder_layers.split('_')]
-#
-# number_latent_dimensions = script_arguments.latent_dimensions
-#
-# decoder_str = script_arguments.decoder_layers
-#
-# layers_decoder = [int(number_units) for number_units
-#     in script_arguments.decoder_layers.split('_')]
-# ##########################################################################
-# layers_str = f'{encoder_str}_{number_latent_dimensions}_{decoder_str}'
-# ##########################################################################
-# loss = script_arguments.loss
-# learning_rate = script_arguments.learning_rate
-# batch_size = script_arguments.batch_size
-# epochs = script_arguments.epochs
-# ##########################################################################
-# number_snr = script_arguments.number_snr
-# ################################################################################
-# # Relevant directories
+# Relevant directories
 # data_dir = f'{spectra_dir}/processed_spectra'
 # ##########################################################################
 # # Defining directorie to save the model once it is trained
@@ -110,11 +94,12 @@ if parser.has_section(section):
 # ################################################################################
 # # Parameters for the AEDense
 # number_input_dimensions = train_set[:, :-8].shape[1]
+number_input_dimensions = 3000
 # ############################################################################
-# ae = AEDense(number_input_dimensions, layers_encoder, number_latent_dimensions,
-#     layers_decoder, batch_size, epochs, learning_rate, loss)
-#
-# ae.summary()
+ae = AEDense(number_input_dimensions, layers_encoder, latent_dimensions,
+    layers_decoder, batch_size, epochs, learning_rate, loss)
+
+ae.summary()
 # ###############################################################################
 # # train the model
 # history = ae.fit(spectra=train_set[:, :-8])
