@@ -11,6 +11,30 @@ from constants_VAE_outlier import models_dir, spectra_dir, working_dir
 from library_outlier import Outlier
 from lib_VAE_outlier import load_data, LoadAE
 
+# ################################################################################
+# #Reconstructed data for outlier detection
+# tail_reconstructed = f'reconstructed_AE_{tail_model_name}'
+#
+# reconstructed_train_set_name = f'{train_set_name}_{tail_reconstructed}'
+# reconstructed_test_set_name = f'{test_set_name}_{tail_reconstructed}'
+#
+# if local:
+#     reconstructed_train_set_name = f'{reconstructed_train_set_name}_local'
+#     reconstructed_test_set_name = f'{reconstructed_test_set_name}_local'
+# ############################################################################
+# print(f'Saving reconstructed data')
+# ############################################################################
+# reconstructed_train_set_path = (
+#     f'{generated_data_dir}/{reconstructed_train_set_name}.npy')
+#
+# reconstructed_set = ae.predict(train_set[:, :-8])
+# np.save(f'{reconstructed_train_set_path}', reconstructed_set)
+# ############################################################################
+# reconstructed_test_set_path = (
+#     f'{generated_data_dir}/{reconstructed_test_set_name}.npy')
+#
+# reconstructed_set = ae.predict(test_set[:, :-8])
+# np.save(f'{reconstructed_test_set_path}', reconstructed_set)
 ###############################################################################
 ti = time.time()
 ################################################################################

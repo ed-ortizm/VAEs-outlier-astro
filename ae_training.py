@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from argparse import ArgumentParser
-from configparser import ConfigParser
+from configparser import ConfigParser, ExtendedInterpolation
 import os
 import sys
 import time
@@ -19,7 +19,7 @@ script_arguments = parser.parse_args()
 local = script_arguments.server == 'local'
 ###############################################################################
 # read them from the configuration file
-parser = ConfigParser()
+parser = ConfigParser(interpolation=ExtendedInterpolation())
 parser.read('ae.ini')
     ############################################################################
 # network architecture
@@ -44,19 +44,14 @@ normalization_type = parser.get('data hyper-parameters', 'normalization_type')
 number_spectra = parser.getint('data hyper-parameters', 'number_spectra')
 number_snr = parser.getint('data hyper-parameters', 'number_snr')
     ############################################################################
-################################################################################
 # Relevant directories
-# data_dir = f'{spectra_dir}/processed_spectra'
-# ##########################################################################
-# # Defining directorie to save the model once it is trained
-# models_dir = f'models/AE/{layers_str}'
-# if not os.path.exists(models_dir):
-#     os.makedirs(models_dir)
-# ##########################################################################
-# generated_data_dir = f'{spectra_dir}/AE_outlier/{layers_str}/{number_snr}'
-# if not os.path.exists(generated_data_dir):
-#     os.makedirs(generated_data_dir)
-# ################################################################################
+data_dir = parser.get('paths', 'data_dir')
+# Defining directorie to save the model once it is trained
+models_dir = parser.get('paths', 'models_dir')
+if not os.path.exists(models_dir):
+    os.makedirs(models_dir)
+    ############################################################################
+    ############################################################################
 # # Loading train data
 # data_set_name = f'spectra_{number_spectra}_{normalization_type}'
 # data_set_path = f'{data_dir}/{data_set_name}.npy'
@@ -99,7 +94,7 @@ number_input_dimensions = 3000
 ae = AEDense(number_input_dimensions, layers_encoder, latent_dimensions,
     layers_decoder, batch_size, epochs, learning_rate, loss)
 
-ae.summary()
+# ae.summary()
 # ###############################################################################
 # # train the model
 # history = ae.fit(spectra=train_set[:, :-8])
@@ -123,29 +118,5 @@ ae.summary()
 #
 # plot_history(history, f'{models_dir}/{ae_name}')
 # ################################################################################
-# #Reconstructed data for outlier detection
-# tail_reconstructed = f'reconstructed_AE_{tail_model_name}'
-#
-# reconstructed_train_set_name = f'{train_set_name}_{tail_reconstructed}'
-# reconstructed_test_set_name = f'{test_set_name}_{tail_reconstructed}'
-#
-# if local:
-#     reconstructed_train_set_name = f'{reconstructed_train_set_name}_local'
-#     reconstructed_test_set_name = f'{reconstructed_test_set_name}_local'
-# ############################################################################
-# print(f'Saving reconstructed data')
-# ############################################################################
-# reconstructed_train_set_path = (
-#     f'{generated_data_dir}/{reconstructed_train_set_name}.npy')
-#
-# reconstructed_set = ae.predict(train_set[:, :-8])
-# np.save(f'{reconstructed_train_set_path}', reconstructed_set)
-# ############################################################################
-# reconstructed_test_set_path = (
-#     f'{generated_data_dir}/{reconstructed_test_set_name}.npy')
-#
-# reconstructed_set = ae.predict(test_set[:, :-8])
-# np.save(f'{reconstructed_test_set_path}', reconstructed_set)
-# ################################################################################
-# tf = time.time()
-# print(f'Running time: {tf-ti:.2f}')
+tf = time.time()
+print(f'Running time: {tf-ti:.2f}')
