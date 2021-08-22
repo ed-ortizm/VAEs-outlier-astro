@@ -9,10 +9,18 @@ import tensorflow as tf
 from tensorflow.keras import backend as K
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, Input, Lambda
-from tensorflow.keras.losses import KLDivergence
-from tensorflow.keras.losses import MeanSquaredError
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.utils import plot_model
+###############################################################################
+from tensorflow.python.framework.ops import disable_eager_execution
+disable_eager_execution()
+# https://github.com/tensorflow/tensorflow/issues/47311
+# The main issue here is that you are using a custom loss callback that takes an
+# argument advantage (from your data generator, most likely numpy arrays).
+# In Tensorflow 2 eager execution, the advantage argument will be numpy,
+# whereas y_true, y_pred are symbolic.
+#
+# The way to solve this is to turn off eager execution
 ###############################################################################
 class VariationalAE:
     """ VAE for outlier detection using tf.keras """
@@ -51,8 +59,12 @@ class VariationalAE:
         self.epochs = epochs
         self.learning_rate = learning_rate
 
-        self.encoder = self.build_encoder()
+        self.encoder = None
+        self.z = None
         self.decoder = self.build_decoder()
+
+        # self.z_mean = None
+        # self.z_log_sigma = None
 
         self.vae = self.build_vae()
     ############################################################################
@@ -61,20 +73,28 @@ class VariationalAE:
         Builds and returns a compiled variational auto encoder using keras API
         """
 
-        output = self.decoder(self.encoder(self.input_layer)[2])
+        # get z_mean and z_log_sigma keras.tensors
+        self.encoder = self.build_encoder()
+        z_mean, z_log_sigma, z  = self.encoder(self.input_layer)
+        ########################################################################
+        self.decoder = self.build_decoder()
+        ########################################################################
+        vae_output = self.decoder(z)
 
-        vae = Model(self.input_layer, output,
+        vae = Model(self.input_layer, vae_output,
             name='variational_auto_encoder')
 
         adam_optimizer = Adam(learning_rate=self.learning_rate)
-
-        loss = self.standard_loss
+        ########################################################################
+        loss = self.standard_loss(z_mean, z_log_sigma)
+        # loss = self.standard_loss()
         vae.compile(loss=loss , optimizer=adam_optimizer,
             metrics=['accuracy'])
 
         return vae
     ############################################################################
-    def standard_loss(self, y_true, y_pred)->'keras.custom_loss':
+    # def standard_loss(self, y_true, y_pred)->'keras.custom_loss':
+    def standard_loss(self, z_mean, z_log_sigma)->'keras.custom_loss':
         """
         Standard loss function for the variational auto encoder, that is,
         mean squared error for de reconstruction loss and the KL divergence.
@@ -88,10 +108,15 @@ class VariationalAE:
             .compile API
         """
 
-        mse = MeanSquaredError(y_true, y_pred)
-        kl = KLDivergence(y_true, y_pred)
+        def loss(y_true, y_pred):
 
-        return K.sum(mse, kl)
+            mse = K.sum(K.square(y_true - y_pred), axis=-1)
+            kl = 1 + z_log_sigma - K.square(z_mean) - K.exp(z_log_sigma)
+            kl = (-0.5) * K.sum(kl, axis=-1)
+
+            return mse + kl
+
+        return loss
     ############################################################################
     def build_encoder(self)-> 'keras.model':
         """
@@ -100,6 +125,8 @@ class VariationalAE:
         X = self.input_layer
         standard_deviation = np.sqrt(2. / self.input_dimensions)
 
+        ########################################################################
+        initial_weights = None
         for idx, units in enumerate(self.encoder_units):
 
             initial_weights = tf.keras.initializers.RandomNormal(
@@ -111,44 +138,28 @@ class VariationalAE:
                 name=f'encoder_{idx+1}')(X)
 
             X = layer
-
             standard_deviation = np.sqrt(2. / units)
+            ####################################################################
+        z_mean = Dense(self.latent_dimensions, name='z_mean',
+                kernel_initializer=initial_weights)(X)
 
-            if units == self.encoder_units[-1]:
+        z_log_sigma = Dense(self.latent_dimensions,
+                name='z_log_sigma',
+                kernel_initializer=initial_weights)(X)
 
-                z_mean = Dense(self.latent_dimensions, name='z_mean',
-                    kernel_initializer=initial_weights)(X)
-
-                z_log_sigma = Dense(self.latent_dimensions,
-                    name='z_log_sigma',
-                    kernel_initializer=initial_weights)(X)
-
-                z = Lambda(self.sampling)([z_mean, z_log_sigma])
-
+        z = self.sampling(z_mean, z_log_sigma)
+        ########################################################################
         encoder = Model(self.input_layer, [z_mean, z_log_sigma, z],
             name='variational_encoder')
 
+        # encoder = Model(self.input_layer, X, name='variational_encoder')
+
         return encoder
     ############################################################################
-    def sampling(self, arguments:'list')->'keras.custom_function':
-        """
-        function to sample into the latent representation
+    def sampling(self, z_mean, z_log_sigma):
 
-        INPUTS
-            arguments: list containing z_mean and z_log_sigma.
-                Better to have in this wayfor the keras.lambda layer
-
-        OUTPUT
-            z : sampled latent variable
-        """
-
-        z_mean, z_log_sigma = arguments
-
-        epsilon = K.random_normal(
-            shape=(K.shape(z_mean)[0], self.latent_dimensions),
-            mean=0., stddev=0.1)
-
-        z = z_mean + K.exp(z_log_sigma) * epsilon
+        epsilon = K.random_normal(shape=K.shape(z_mean), mean=0., stddev=1.)
+        z = z_mean + K.exp(z_log_sigma / 2) * epsilon
 
         return z
     ############################################################################
@@ -156,56 +167,37 @@ class VariationalAE:
         """
         Builds and returns a compiled decoder using keras API
         """
+        # An imput layer rather than self.z tensor for backpropagation
         decoder_input = Input(shape=(self.latent_dimensions,),
             name='z_sampling')
 
         standard_deviation = np.sqrt(2. / self.latent_dimensions)
 
         X = decoder_input
-
+        initial_weights = None
+        ########################################################################
         for idx, units in enumerate(self.decoder_units):
 
-            initialization_weights = tf.keras.initializers.RandomNormal(
+            initial_weights = tf.keras.initializers.RandomNormal(
                 mean=0., stddev=standard_deviation)
 
             layer = Dense(units, activation='relu',
-                kernel_initializer=initialization_weights,
+                kernel_initializer=initial_weights,
                 name=f'decoder_{idx+1}')(X)
 
             X = layer
             standard_deviation = np.sqrt(2./units)
 
-            if units == self.decoder_units[-1]:
-                decoder_output = self.decoder_output_layer(
-                    standard_deviation, X)
+            # if units == self.decoder_units[-1]:
+        ########################################################################
+        decoder_output = Dense(self.input_dimensions,
+            kernel_initializer=initial_weights,
+            name='decoder_output')(X)
 
         decoder = Model(decoder_input, decoder_output,
             name='variational_decoder')
 
         return decoder
-    ###########################################################################
-    def decoder_output_layer(self,
-        standard_deviation:'float',
-        X:'keras.layer')->'keras.Dense':
-        """
-        Auxiliary method to create a decoder output layer with a linear
-        activation function to account for high emission lines
-        think how to use it to my advantage
-
-        INPUTS
-            standard_deviation: For the purpose of initialization of the weights
-            X: previous hidden layer to the output of the decoder
-
-        OUTPUTS
-            output_layer: keras.Dense.Layer, the output layer
-        """
-        initialization_weights = tf.keras.initializers.RandomNormal(
-            mean=0., stddev=standard_deviation)
-
-        output_layer = Dense(self.input_dimensions, name='decoder_output',
-        kernel_initializer=initialization_weights)(X)
-
-        return output_layer
     ############################################################################
     def custom_loss(self):
         pass
