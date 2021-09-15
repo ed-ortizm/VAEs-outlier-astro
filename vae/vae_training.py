@@ -1,27 +1,26 @@
 #!/usr/bin/env python3.8
 from configparser import ConfigParser, ExtendedInterpolation
 import os
+import sys
 import time
-
+################################################################################
 import numpy as np
 from sklearn.utils import shuffle
-
-from ae_library import VariationalAE
-###############################################################################
-ti = time.time()
-###############################################################################
-# configuration file
+################################################################################
 parser = ConfigParser(interpolation=ExtendedInterpolation())
 parser.read('vae.ini')
-############################################################################
-# Relevant directories
+############################################################
+# to import from src since I'm in a difrent leaf of the tree structure
+work_directory = parser.get('directories', 'work')
+sys.path.insert(0, f'{work_directory}')
+################################################################################
+from src.vae import VariationalAE
+################################################################################
+ti = time.time()
+################################################################################
+
 data_directory = parser.get('directories', 'train')
 output_directory = parser.get('directories', 'output')
-
-# save the model once it is trained
-models_directory = parser.get('directories', 'models')
-if not os.path.exists(models_directory):
-    os.makedirs(models_directory)
 ############################################################################
 # network architecture
 encoder_str = parser.get('architecture', 'encoder')
@@ -40,7 +39,7 @@ batch_size = parser.getint('hyper-parameters', 'batch_size')
 epochs = parser.getint('hyper-parameters', 'epochs')
 ############################################################################
 # data parameters
-number_spectra = parser.getint('data-parameters', 'number_spectra')
+number_spectra = parser.getint('parameters', 'spectra')
 ################################################################################
 number_input_dimensions = 3000
 vae = VariationalAE(input_dimensions=number_input_dimensions,
@@ -54,13 +53,17 @@ vae.summary()
 # Loading training data
 # X =
 # X = shuffle(X, random_state=0)
-history = vae.fit(X)
-Y = vae.predict(X)
+# history = vae.fit(X)
+# Y = vae.predict(X)
 ###############################################################################
 # Training the model
 
 # history = vae.fit(spectra=training_set[:, :-5])
 ###############################################################################
+# save the model once it is trained
+models_directory = parser.get('directories', 'models')
+if not os.path.exists(models_directory):
+    os.makedirs(models_directory)
 # Defining directorie to save the model once it is trained
 # vae_name = 'DenseVAE'
 # encoder_name = 'DenseEncoder'

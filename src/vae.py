@@ -211,7 +211,7 @@ class VariationalAE:
             # if units == self.decoder_units[-1]:
         ########################################################################
         decoder_output = Dense(self.input_dimensions,
-            activation=self.out_activation
+            activation=self.out_activation,
             kernel_initializer=initial_weights,
             name='decoder_output')(X)
 
