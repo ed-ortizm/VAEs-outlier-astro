@@ -71,13 +71,49 @@ class VAE:
 
         self.out_activation = output_activation
 
-        self.reconstruction_loss_weight = reconstruction_loss_weight
+        self.reconstruction_weight = reconstruction_loss_weight
 
         self.encoder = None
         self.decoder = None
         self.model = None
 
         self._build()
+    ############################################################################
+    def reconstruct(self, spectra:'2D np.array')-> '2D np.array':
+
+        if spectra.ndim == 1:
+            spectra = spectra.reshape(1, -1)
+
+        return self.model.predict(spectra)
+    ############################################################################
+    def encode(self, spectra:'2D np.array')-> '2D np.array':
+
+        if spectra.ndim == 1:
+            spectra = spectra.reshape(1, -1)
+
+        z = self.encoder.predict(spectra)
+
+        return z
+    ############################################################################
+    def decode(self, z:'2D np.array')->'2D np.aray':
+
+        if z.ndim==1:
+            coding = z.reshape(1,-1)
+
+        spectra = self.decoder.predict(z)
+
+        return spectra
+    ############################################################################
+    def train(self, spectra):
+
+        self.model.fit(
+            x=spectra,
+            y=spectra,
+            batch_size=self.batch_size,
+            epochs=self.epochs,
+            verbose=2,
+            shuffle=True
+        )
     ############################################################################
     def _build(self)->'':
         """
@@ -87,8 +123,65 @@ class VAE:
 
         self._build_encoder()
         self._build_decoder()
-        # self._build_vae()
-        # return Input(shape=self.latent_space_dim, name="decoder_input")
+        self._build_vae()
+        self._compile()
+    ############################################################################
+    def _compile(self):
+
+        optimizer = Adam(learning_rate=self.learning_rate)
+
+        self.model.compile(
+            optimizer=optimizer,
+            loss=self._loss,
+            metrics=['accuracy', 'mse']
+            # metrics=[self._loss, self._kl_loss]
+        )
+    ############################################################################
+    def _loss(self, y_target, y_predicted):
+        """
+        Standard loss function for the variational auto encoder
+        , that is, for de reconstruction loss and the KL divergence.
+
+        # y_target, y_predicted: keep consistency with keras API
+        # a loss function expects this two parameters
+
+        INPUTS
+            y_true : input datapoint
+            y_pred : predicted value by the network
+
+        OUTPUT
+            loss function with the keras format that is compatible
+            with the .compile API
+        """
+
+        reconstruction_loss = self._reconstruction_loss(y_target, y_predicted)
+        kl_loss = self._kl_loss(y_target, y_predicted)
+
+        loss = self.reconstruction_weight * reconstruction_loss + kl_loss
+
+        return loss
+    ############################################################################
+    def _reconstruction_loss(self, y_target, y_predicted):
+
+        error = y_target - y_predicted
+        reconstruction_loss = K.mean(K.square(error), axis=1)
+
+        return reconstruction_loss
+    ############################################################################
+    def _kl_loss(self, y_target, y_predicted):
+
+        kl_loss = -0.5 * K.sum(1 +
+            self.log_variance - K.square(self.mu) - K.exp(self.log_variance),
+            axis=1
+        )
+
+        return kl_loss
+    ############################################################################
+    def _build_vae(self):
+
+        input = self._model_input
+        output = self.decoder(self.encoder(input))
+        self.model = Model(input, output, name='variational auto-encoder')
     ############################################################################
     def _build_decoder(self):
 
@@ -227,207 +320,20 @@ class VAE:
         )([self.mu, self.log_variance])
 
         return x
+
+    def save_model(self, directory:'str'):
+
+        self.encoder.save(f'{directory}/encoder')
+        self.decoder.save(f'{directory}/decoder')
+        self.model.save(f'{directory}/vae')
     ############################################################################
+    def summary(self):
+        self.encoder.summary()
+        self.decoder.summary()
+        self.model.summary()
     ############################################################################
-#         # get z_mean and z_log_sigma keras.tensors
-#         self.encoder = self.build_encoder()
-#         z_mean, z_log_sigma, z  = self.encoder(self.input_layer)
-#         ########################################################################
-#         self.decoder = self.build_decoder()
-#         ########################################################################
-#         vae_output = self.decoder(z)
-#
-#         vae = Model(self.input_layer, vae_output,
-#             name='variational_auto_encoder')
-#
-#         adam_optimizer = Adam(learning_rate=self.learning_rate)
-#         ########################################################################
-#         loss = self.standard_loss(z_mean, z_log_sigma)
-#         # loss = self.standard_loss()
-#         vae.compile(loss=loss , optimizer=adam_optimizer,
-#             metrics=['accuracy'])
-#
-#         return vae
-#     ############################################################################
-#     # y_target, y_predicted: keep consistency with keras API
-#     # a loss function expects this two parameters
-#     def _loss(self, y_target, y_predicted):
-#         """
-#         Standard loss function for the variational auto encoder, that is,
-#         mean squared error for de reconstruction loss and the KL divergence.
-#
-#         INPUTS
-#             y_true : input datapoint
-#             y_pred : predicted value by the network
-#
-#         OUTPUT
-#             loss function with the keras format that is compatible with the
-#             .compile API
-#         """
-#
-#         reconstruction_loss = self._reconstruction_loss(y_target, y_predicted)
-#         kl_loss = self._kl_loss(y_target, y_predicted)
-#
-#         [loss] = [
-#             self.reconstruction_loss_weight * reconstruction_loss + kl_loss
-#         ]
-#
-#         return loss
-#
-#     ############################################################################
-#     def _reconstruction_loss(self, y_target, y_predicted):
-#
-#         error = y_target - y_predicted
-#
-#         reconstruction_loss = K.mean(K.square(error), axis=1)
-#
-#         return reconstruction_loss
-#
-#     ############################################################################
-#     def _kl_loss(self, y_target, y_predicted):
-#
-#         kl_loss = -0.5 * K.sum(1 +
-#             self.log_variance - K.square(self.mu) - K.exp(self.log_variance),
-#             axis=1
-#         )
-#
-#         return kl_loss
-#     ############################################################################
-#     def build_encoder(self)-> 'keras.model':
-#         """
-#         Builds and returns a compiled variational encoder using keras API
-#         """
-#         X = self.input_layer
-#         standard_deviation = np.sqrt(2. / self.input_dimensions)
-#
-#         ########################################################################
-#         initial_weights = None
-#         for idx, units in enumerate(self.encoder_units):
-#
-#             initial_weights = tf.keras.initializers.RandomNormal(
-#                 mean=0.,
-#                 stddev=standard_deviation)
-#
-#             layer = Dense(units,
-#                 activation='relu',
-#                 kernel_initializer=initial_weights,
-#                 name=f'encoder_{idx+1}')(X)
-#
-#             X = layer
-#             standard_deviation = np.sqrt(2. / units)
-#             ####################################################################
-#         z_mean = Dense(self.latent_dimensions,
-#             name='z_mean',
-#             kernel_initializer=initial_weights
-#             )(X)
-#
-#         z_log_sigma = Dense(self.latent_dimensions,
-#             name='z_log_sigma',
-#             kernel_initializer=initial_weights
-#             )(X)
-#
-#         z = self.sampling(z_mean, z_log_sigma)
-#         ########################################################################
-#         encoder = Model(self.input_layer, [z_mean, z_log_sigma, z],
-#             name='variational_encoder')
-#
-#         return encoder
-#     ############################################################################
-#     def sampling(self, z_mean, z_log_sigma):
-#
-#         epsilon = K.random_normal(shape=K.shape(z_mean), mean=0., stddev=1.)
-#         z = z_mean + K.exp(z_log_sigma / 2) * epsilon
-#
-#         return z
-#     ############################################################################
-#     def build_decoder(self)->'keras.model':
-#         """
-#         Builds and returns a compiled decoder using keras API
-#         """
-#         # An imput layer rather than self.z tensor for backpropagation
-#         decoder_input = Input(shape=(self.latent_dimensions,),
-#             name='z_sampling')
-#
-#         standard_deviation = np.sqrt(2. / self.latent_dimensions)
-#
-#         X = decoder_input
-#         initial_weights = None
-#         ########################################################################
-#         for idx, units in enumerate(self.decoder_units):
-#
-#             initial_weights = tf.keras.initializers.RandomNormal(
-#                 mean=0.,
-#                 stddev=standard_deviation)
-#
-#             layer = Dense(units,
-#                 activation='relu',
-#                 kernel_initializer=initial_weights,
-#                 name=f'decoder_{idx+1}'
-#                 )(X)
-#
-#             X = layer
-#             standard_deviation = np.sqrt(2./units)
-#
-#             # if units == self.decoder_units[-1]:
-#         ########################################################################
-#         decoder_output = Dense(self.input_dimensions,
-#             activation=self.out_activation,
-#             kernel_initializer=initial_weights,
-#             name='decoder_output')(X)
-#
-#         decoder = Model(decoder_input, decoder_output,
-#             name='variational_decoder')
-#
-#         return decoder
-#     ############################################################################
-#     def custom_loss(self):
-#         pass
-#     ############################################################################
-#     def fit(self, spectra:'2D np.array')-> 'None':
-#
-#         self.vae.fit(x=spectra, y=spectra, epochs=self.epochs,
-#             batch_size=self.batch_size, verbose=2)
-#     ############################################################################
-#     def predict(self, spectra:'2D np.array')-> '2D np.array':
-#
-#         if spectra.ndim == 1:
-#             spectra = spectra.reshape(1, -1)
-#
-#         return self.vae.predict(spectra)
-#     ############################################################################
-#     def encode(self, spectra:'2D np.array')-> '2D np.array':
-#
-#         if spectra.ndim == 1:
-#             spectra = spectra.reshape(1, -1)
-#         return self.encoder(spectra)
-#     ############################################################################
-#     def decode(self, coding:'2D np.array')->'2D np.aray':
-#
-#         if coding.ndim==1:
-#             coding = coding.reshape(1,-1)
-#
-#         return self.decoder(coding)
-#     ############################################################################
-#     def save_vae(self, fpath:'str'):
-#
-#         self.vae.save(f'{fpath}')
-#     # ############################################################################
-#     def save_encoder(self, fpath:'str'):
-#
-#         self.encoder.save(f'{fpath}')
-#     ############################################################################
-#     def save_decoder(self, fpath:'str'):
-#
-#         self.decoder.save(f'{fpath}')
-#     ############################################################################
 #     def plot_model(self):
 #
 #         plot_model(self.vae, to_file='DenseVAE.png', show_shapes='True')
 #         plot_model(self.encoder, to_file='DenseEncoder.png', show_shapes='True')
 #         plot_model(self.decoder, to_file='DenseDecoder.png', show_shapes='True')
-#     # ############################################################################
-#     def summary(self):
-#         self.encoder.summary()
-#         self.decoder.summary()
-#         self.vae.summary()
-# ###############################################################################
