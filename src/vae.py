@@ -10,7 +10,7 @@ import tensorflow as tf
 from tensorflow.keras import backend as K
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Dense, Input
-from tensorflow.keras.layers import Activation, BatchNormalization, ReLU
+from tensorflow.keras.layers import Activation, BatchNormalization, LeakyReLU
 from tensorflow.keras.layers import Lambda
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.utils import plot_model
@@ -91,46 +91,91 @@ class VAE:
         # return Input(shape=self.latent_space_dim, name="decoder_input")
     ############################################################################
     def _build_decoder(self):
-        pass
+
+        decoder_input = Input(
+            shape=(self.latent_dimensions,),
+            name="decoder_input"
+        )
+
+        decoder_block = self._add_block(
+            input=decoder_input,
+            block='decoder'
+        )
+
+        decoder_output = self._output_layer(decoder_block)
+
+        self.decoder = Model(decoder_input, decoder_output, name="decoder")
+    ############################################################################
+    def _output_layer(self, decoder_block:'keras.Dense'):
+
+        units = self.encoder_units[-1]
+        standard_deviation = np.sqrt(2./units)
+
+        initial_weights = tf.keras.initializers.RandomNormal(
+            mean=0.,
+            stddev=standard_deviation
+        )
+
+        output_layer = Dense(
+            self.input_dimensions,
+            kernel_initializer=initial_weights,
+            name='decoder_output_layer'
+            )
+
+        x = output_layer(decoder_block)
+        x = Activation(self.out_activation, name='output_activation')(x)
+
+        return x
     ############################################################################
     def _build_encoder(self):
 
         encoder_input = Input(
-            shape=self.input_dimensions,
+            shape=(self.input_dimensions,),
             name="encoder_input"
         )
 
-        encoder_block = self._encoder_block(encoder_input)
+        encoder_block = self._add_block(
+            input=encoder_input,
+            block='encoder'
+        )
 
         latent_layer = self._latent_layer(encoder_block)
 
         self._model_input = encoder_input
         self.encoder = Model(encoder_input, latent_layer, name="encoder")
-
     ############################################################################
-    def _encoder_block(self, encoder_input):
+    def _add_block(self, input:'keras.Input', block:'str'):
 
-        x = encoder_input
-        standard_deviation = np.sqrt(2. / self.input_dimensions)
+        x = input
 
-        for layer_index, number_units in enumerate(self.encoder_units):
+        if block == 'encoder':
+            input_dimensions = self.input_dimensions
+            block_units = self.encoder_units
+        else:
+            input_dimensions = self.latent_dimensions
+            block_units = self.decoder_units
+
+
+        standard_deviation = np.sqrt(2. / input_dimensions)
+
+        for layer_index, number_units in enumerate(block_units):
 
             x, standard_deviation = self._add_layer(
                     x,
                     layer_index,
                     number_units,
-                    # initial_weights,
-                    standard_deviation
+                    standard_deviation,
+                    block
                 )
 
         return x
     ############################################################################
     def _add_layer(self,
-        x:'',
+        x:'keras.Dense',
         layer_index:'int',
         number_units:'int',
-        # initial_weights,
-        standard_deviation:''
+        standard_deviation:'float',
+        block:'str'
         ):
 
         initial_weights = tf.keras.initializers.RandomNormal(
@@ -141,15 +186,15 @@ class VAE:
         layer = Dense(
             number_units,
             kernel_initializer=initial_weights,
-            name=f'encoder_layer_{layer_index + 1}'
+            name=f'{block}_layer_{layer_index + 1}'
             )
 
         x = layer(x)
 
-        x = ReLU(name=f'relu_encoder_layer_{layer_index + 1}')(x)
+        x = LeakyReLU(name=f'LeakyReLU_{block}_{layer_index + 1}')(x)
 
         x = BatchNormalization(
-            name=f'batch_normaliztionencoder_layer_{layer_index + 1}'
+            name=f'batch_normaliztion_{block}_{layer_index + 1}'
             )(x)
 
         standard_deviation = np.sqrt(2. / number_units)
@@ -162,8 +207,6 @@ class VAE:
 
         self.log_variance = Dense(self.latent_dimensions,
                                   name="log_variance")(x)
-
-
         ########################################################################
         def sample_normal_distribution(args):
 
@@ -178,15 +221,12 @@ class VAE:
 
             return point
         ########################################################################
-        x = Lambda(sample_normal_distribution,
-                    name='encoder_outputs')([self.mu, self.log_variance])
+        x = Lambda(
+            sample_normal_distribution,
+            name='encoder_outputs'
+        )([self.mu, self.log_variance])
 
         return x
-    ############################################################################
-    ############################################################################
-
-    ############################################################################
-    ############################################################################
     ############################################################################
     ############################################################################
 #         # get z_mean and z_log_sigma keras.tensors
