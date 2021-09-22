@@ -10,7 +10,7 @@ import tensorflow as tf
 from tensorflow.keras import backend as K
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Conv2D, Conv2DTranspose
-from tensorflow.keras.layers import Dense, Flatten, Input
+from tensorflow.keras.layers import Dense, Flatten, Input, Reshape
 from tensorflow.keras.layers import Activation, BatchNormalization, LeakyReLU
 from tensorflow.keras.layers import Lambda
 from tensorflow.keras.optimizers import Adam
@@ -64,6 +64,7 @@ class CVAE:
         self.encoder_kernels = encoder_kernels
         self.encoder_strides = encoder_strides
 
+        self._shape_before_latent = None
         self.latent_dimensions = latent_dimensions
 
         self.decoder_filters = decoder_filters
@@ -128,7 +129,7 @@ class CVAE:
         """
 
         self._build_encoder()
-        # self._build_decoder()
+        self._build_decoder()
         # self._build_vae()
         # self._compile()
 
@@ -188,44 +189,73 @@ class CVAE:
     #      input = self._model_input
     #     output = self.decoder(self.encoder(input))
     #     self.model = Model(input, output, name='variational auto-encoder')
-    # ############################################################################
-    # def _build_decoder(self):
+    ############################################################################
+    def _build_decoder(self):
 
-    #      decoder_input = Input(
-    #         shape=(self.latent_dimensions,),
-    #         name="decoder_input"
-    #     )
+        decoder_input = Input(
+            shape=(self.latent_dimensions,),
+            name="decoder_input"
+        )
 
-    #      decoder_block = self._add_block(
-    #         input=decoder_input,
-    #         block='decoder'
-    #     )
+        units = np.prod(self._shape_before_latent) # [1, 2, 4] -> 8
+        dense_layer = Dense(units, name="decoder_dense")(decoder_input)
+        reshape_layer = Reshape(self._shape_before_latent)(dense_layer)
 
-    #      decoder_output = self._output_layer(decoder_block)
+        decoder_block = self._add_transpose_convolutional_block(
+            input=decoder_input
+        )
 
-    #      self.decoder = Model(decoder_input, decoder_output, name="decoder")
-    # ############################################################################
-    # def _output_layer(self, decoder_block:'keras.Dense'):
+        decoder_output = self._output_layer(decoder_block)
 
-    #      units = self.encoder_units[-1]
-    #     standard_deviation = np.sqrt(2./units)
+        self.decoder = Model(decoder_input, decoder_output, name="decoder")
+    ############################################################################
+    def _add_transpose_convolutional_block(self, input: 'keras.Input'):
 
-    #      initial_weights = tf.keras.initializers.RandomNormal(
-    #         mean=0.,
-    #         stddev=standard_deviation
-    #     )
+        x = input
 
-    #      output_layer = Dense(
-    #         self.input_dimensions,
-    #         kernel_initializer=initial_weights,
-    #         name='decoder_output_layer'
-    #         )
+        for layer_index, filters in enumerate(self.decoder_filters):
 
-    #      x = output_layer(decoder_block)
-    #     x = Activation(self.out_activation, name='output_activation')(x)
+            x = self._add_transpose_convolutional_layer(
+                x, layer_index, filters)
 
-    #      return x
-    # ############################################################################
+        return x
+    ############################################################################
+    def _add_transpose_convolutional_layer(self,
+        x:"keras.Conv2DTranspose",
+        layer_index:"int",
+        filters:"int"
+    ):
+
+        transpose_convolutional_layer = Conv2DTranspose(
+            filters=self.decoder_filters[layer_index],
+            kernel_size=self.decoder_kernels[layer_index],
+            strides=self.decoder_strides[layer_index],
+            padding="same",
+            name=f"decoder_transpose_{layer_index + 1}",
+        )
+
+        x = transpose_convolutional_layer(x)
+        x = LeakyReLU(name=f"LReLU_decoder_{layer_index + 1}")(x)
+        x = BatchNormalization(name=f"BN_decoder_{layer_index + 1}")(x)
+
+        return x
+
+    ############################################################################
+    def _output_layer(self, decoder_block:'keras.Conv2DTranspose'):
+
+        output_layer = Conv2DTranspose(
+            filters=1,
+            kernel_size=self.decoder_kernels[0],
+            strides=self.decoder_strides[0],
+            padding="same",
+            name=f"decoder_output_layer"
+        )
+
+        x = output_layer(decoder_block)
+        x = Activation(self.out_activation, name='output_activation')(x)
+
+        return x
+    ############################################################################
     def _build_encoder(self):
 
         encoder_input = Input(shape=self.input_shape, name="encoder_input")
@@ -261,17 +291,15 @@ class CVAE:
         )
 
         x = convolutional_layer(x)
-        x = LeakyReLU(name=f"LeakyReLU_encoder_{layer_index + 1}")(x)
-
-        x = BatchNormalization(
-            name=f"batch_normalization_encoder_{layer_index + 1}"
-        )(x)
+        x = LeakyReLU(name=f"LReLU_encoder_{layer_index + 1}")(x)
+        x = BatchNormalization(name=f"BN_encoder_{layer_index + 1}")(x)
 
         return x
 
     ############################################################################
     def _latent_layer(self, x: ""):
 
+        self._shape_before_latent = K.int_shape(x)[1:]
         x = Flatten()(x)
 
         self.mu = Dense(self.latent_dimensions, name="mu")(x)
